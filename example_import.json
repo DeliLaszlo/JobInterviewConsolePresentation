@@ -1,0 +1,34 @@
+{
+  "Questions": [
+    {
+      "Text": "Mi a LINQ es mire hasznaljuk C#-ban?",
+      "Answer": "A LINQ (Language Integrated Query) egy C# nyelvi funkcio, amely lehetove teszi adatok lekerdezeset egyseges szintaxissal kulonbozo forrasokbol (tombbok, listak, adatbazis, XML). Ket formaja: query syntax (from ... where ... select) es method syntax (.Where().Select()). Tipusbiztos, IntelliSense tamogatott es konnyen olvashato kodot eredmenyez.",
+      "TopicName": "C# Alapok",
+      "Difficulty": "Medium"
+    },
+    {
+      "Text": "Mi az Entity Framework es milyen megkozeliteseket tamogat?",
+      "Answer": "Az Entity Framework (EF) egy ORM (Object-Relational Mapper) a .NET-hez, amely C# objektumokkal dolgozik adatbazis tablak helyett. Harom megkozelites: Code First (osztaly -> DB), Database First (DB -> osztaly), Model First (vizualis modell -> DB). Az EF Core a modern, cross-platform valtozat. Tamogatja a LINQ-t, migraciot es a lazy/eager loading-ot.",
+      "TopicName": ".NET Keretrendszer",
+      "Difficulty": "Medium"
+    },
+    {
+      "Text": "Magyarazd el a MVC (Model-View-Controller) architektura mintat!",
+      "Answer": "Az MVC szetvalasztja az alkalmazast harom retegre: Model (adatok, uzleti logika), View (megjelenites, UI), Controller (kozvetito, kezeli a user inputot es frissiti a Model-t/View-t). Elonyok: feladatok szetvalasztasa, tesztelhetoseg, parhuzamos fejlesztes. ASP.NET Core MVC-ben a Controller Action-ok kezelik a HTTP kereseket es visszaadjak a View-ket.",
+      "TopicName": "Design Patterns",
+      "Difficulty": "Easy"
+    },
+    {
+      "Text": "Mi az a stored procedure es mikor erdemes hasznalni?",
+      "Answer": "A stored procedure egy elore leforditott SQL program, amely az adatbazis szerveren tarolodik. Parameterezhetyo, ujrahasznalhato es biztonsagosabb (SQL injection ellen ved). Erdemes hasznalni osszetett uzleti logikanal, teljesitmeny-kritikus lekerdezesakel es jogosultsag-kezeleanel. Hatrany: nehezebb karbantartani, verziokezelni es tesztelni, mint az alkalmazas-oldali kodot.",
+      "TopicName": "SQL es Adatbazisok",
+      "Difficulty": "Medium"
+    },
+    {
+      "Text": "Mi a kulonbseg a List<T> es a LinkedList<T> kozott?",
+      "Answer": "A List<T> belso tombra epul: gyors indexelt hozzaferes O(1), de beszuras/torles a kozepen lassu O(n) az eltolas miatt. A LinkedList<T> csompontokra epul: beszuras/torles barmelyik pozicion O(1) ha van referencia a csomopontra, de az indexelt hozzaferes O(n). List<T> a legtobb esetben jobb a cache-baratabb memoria-elrendezes miatt.",
+      "TopicName": "Algoritmusok es Adatszerkezetek",
+      "Difficulty": "Medium"
+    }
+  ]
+}

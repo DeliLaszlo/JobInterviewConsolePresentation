@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -10,6 +10,13 @@
   <ItemGroup>
     <ProjectReference Include="..\JobInterviewBusinessLogic\JobInterviewBusinessLogic.csproj" />
     <ProjectReference Include="..\JobInterviewCore\JobInterviewCore.csproj" />
+    <ProjectReference Include="..\JobInterviewDataAccess\JobInterviewDataAccess.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

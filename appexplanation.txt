@@ -1,0 +1,389 @@
+================================================================================
+  ÁLLÁSINTERJÚ KÉRDÉSBANK - ALKALMAZÁS MAGYARÁZAT
+  .NET Konzolos alkalmazás - Rétegenkénti lebontás
+================================================================================
+
+TARTALOMJEGYZÉK:
+  1. Projekt architektúra áttekintés
+  2. Core réteg (JobInterviewCore)
+  3. Data Access réteg (JobInterviewDataAccess)
+  4. Business Logic réteg (JobInterviewBusinessLogic)
+  5. Presentation réteg (JobInterviewConsolePresentation)
+  6. Használt technológiák és NuGet csomagok
+  7. Adatbázis
+  8. Főbb algoritmusok
+
+================================================================================
+1. PROJEKT ARCHITEKTÚRA ÁTTEKINTÉS
+================================================================================
+
+Az alkalmazás Clean Architecture / Layered Architecture elvét követi, 4 rétegre
+bontva a kódot. A függőségek egyirányúak: a Presentation hivatkozik a
+BusinessLogic-ra és a Core-ra, a BusinessLogic hivatkozik a DataAccess-re
+és a Core-ra, a DataAccess hivatkozik a Core-ra. A Core réteg senkire sem
+hivatkozik - ez a függőséginverzió (Dependency Inversion) elve.
+
+Függőségi gráf:
+
+  Presentation --> BusinessLogic --> DataAccess --> Core
+       |                |                           ^
+       +----------------+---------------------------+
+
+Minden réteg külön .NET projekt (külön DLL), ami biztosítja a fizikai
+elválasztást is. A rétegek közötti kommunikáció interfészeken keresztül
+történik (loose coupling), ami lehetővé teszi az egyes rétegek független
+tesztelését és cserélhetőségét.
+
+================================================================================
+2. CORE RÉTEG (JobInterviewCore)
+================================================================================
+
+A Core réteg az alkalmazás "szíve" - tartalmazza a domain modelleket,
+interfészeket és DTO-kat. Ez a réteg SEMMILYEN külső függőséggel nem
+rendelkezik (tiszta C# osztályok).
+
+--- Enums/Difficulty.cs ---
+  Felsorolási típus a kérdések nehézségi szintjéhez:
+  - Easy (1): Könnyű kérdések, alap ismeretek
+  - Medium (2): Közepes nehézségű, mélyebb tudást igényel
+  - Hard (3): Nehéz, haladószintű kérdések
+
+--- Entities/ ---
+  A domain entitások az adatbázis tábláknak megfelelő C# osztályok.
+  Minden entitás tartalmaz navigációs property-ket a kapcsolódó
+  entitásokhoz (EF Core lazy/eager loading számára).
+
+  Question.cs:
+    - Id: egyedi azonosító (PK)
+    - Text: a kérdés szövege
+    - Answer: a helyes válasz szövege (megjelenik gyakorlás közben)
+    - TopicId: hivatkozás a témakörre (FK)
+    - Difficulty: nehézségi szint (enum)
+    - CreatedAt: létrehozás dátuma
+    - Navigációs property-k: Topic, Attempts, Ratings, Bookmarks
+
+  Topic.cs:
+    - Id, Name
+    - Navigáció: Questions kollekció
+
+  Attempt.cs:
+    - Egy gyakorlási próbálkozás rekordját tárolja
+    - QuestionId: melyik kérdésre válaszolt
+    - Correct: helyes volt-e a válasz (bool)
+    - AttemptedAt: mikor történt
+
+  Rating.cs:
+    - A felhasználó értékelése egy kérdésről (1-5 skála)
+    - QuestionId, Score, CreatedAt
+
+  Bookmark.cs:
+    - Könyvjelző egy kérdéshez (később visszatérés)
+    - QuestionId, CreatedAt
+    - Egyedi index: egy kérdéshez max egy könyvjelző
+
+--- Interfaces/ ---
+
+  IRepository.cs:
+    Generikus repository interfész (Repository Pattern).
+    Metódusok: GetByIdAsync, GetAllAsync, FindAsync (predikátum alapú),
+    AddAsync, AddRangeAsync, UpdateAsync, DeleteAsync, SaveChangesAsync.
+    Minden adathozzáférést ezen az absztrakción keresztül végzünk.
+
+  IQuestionRepository.cs:
+    A generikus repo kiegészítése kérdés-specifikus lekérdezésekkel:
+    - GetAllWithDetailsAsync(): összes kérdés betöltése a kapcsolódó
+      Topic, Attempts, Ratings, Bookmarks entitásokkal együtt (eager loading)
+    - GetWithDetailsAsync(id): egy kérdés részletes betöltése
+    - GetByTopicAsync(topicId): kérdések témakör szerint
+
+  IBookmarkRepository.cs:
+    Könyvjelző-specifikus lekérdezés:
+    - GetAllWithQuestionsAsync(): könyvjelzők a kérdés és témakör adataival
+
+  IServices.cs:
+    Az összes üzleti logikai szolgáltatás interfésze egy fájlban:
+    - IPracticeService: gyakorló mód (random és adaptív kérdés-választás)
+    - IStatisticsService: statisztikák és toplisták
+    - IDailyPackageService: napi gyakorló csomag generálás
+    - IImportExportService: JSON import/export
+    - IWeeklySummaryService: heti összefoglaló + e-mail
+    - IQuestionService: kérdés/témakör CRUD
+    - IBookmarkService: könyvjelző kezelés
+
+--- DTOs/Dtos.cs ---
+  Data Transfer Object-ek a rétegek közötti adatátküldéshez:
+
+  QuestionExportDto: kérdés export formátuma (Text, Answer, TopicName, Difficulty)
+  ImportData: import fájl gyökér-objektuma (Questions lista)
+  TopicStatDto: témakör statisztika (név, próbálkozások, helyes arány)
+  QuestionStatDto: kérdés statisztika (text, téma, nehézség, pontosság, átlag rating)
+  WeeklySummaryDto: heti összefoglaló (időszak, próbálkozások, pontosság, témák)
+
+================================================================================
+3. DATA ACCESS RÉTEG (JobInterviewDataAccess)
+================================================================================
+
+Ez a réteg felelős az adatbázis-műveletekért. Entity Framework Core-t
+használ MSSQL Express adatbázissal.
+
+--- AppDbContext.cs ---
+  Az EF Core DbContext leszármazott, az adatbázis-kapcsolat központja.
+
+  DbSet property-k minden entitáshoz:
+    Questions, Topics, Attempts, Ratings, Bookmarks
+
+  OnModelCreating() - Fluent API konfiguráció:
+    - Question: max 1000 karakter szöveg, max 2000 karakter válasz,
+      Difficulty enum int-ként tárolva, GETUTCDATE() default az időbélyegre,
+      Many-to-One kapcsolat Topic-kal (Restrict delete), Index a TopicId-n
+    - Topic: max 200 karakter név, egyedi index a néven
+    - Attempt: Cascade delete a Question törlésénél, Index a QuestionId-n
+    - Rating: Score required, Cascade delete, Index a QuestionId-n
+    - Bookmark: Cascade delete, EGYEDI index a QuestionId-n (kérdésenként max 1)
+
+--- DbSeeder.cs ---
+  Statikus osztály az adatbázis feltöltésére a legelső induláskor.
+  Ellenőrzi, hogy vannak-e már témakörök - ha igen, nem csinál semmit.
+  Létrehoz 7 témakört és 35 C#/.NET állásinterjú kérdést válaszokkal.
+
+  Témakörök: C# Alapok, OOP, .NET Keretrendszer, SQL és Adatbázisok,
+  Design Patterns, Web Fejlesztés, Algoritmusok és Adatszerkezetek.
+  Minden témakörhöz 5 kérdés (Easy/Medium/Hard vegyesen).
+
+--- Repositories/ ---
+
+  Repository.cs (generikus base):
+    Az IRepository<T> implementációja. DbContext-et és DbSet<T>-t használ.
+    Minden metódus async és automatikusan meghívja a SaveChangesAsync()-et.
+    FindAsync() LINQ Where()-t használ Expression<Func<T,bool>> predikátummal.
+
+  QuestionRepository.cs:
+    Repository<Question>-ből örököl, implementálja az IQuestionRepository-t.
+    A GetAllWithDetailsAsync() Include().Include().Include().AsSplitQuery()
+    lánccal tölti be az összes navigációs property-t. Az AsSplitQuery()
+    elkerüli a karteziánus szorzat problémát (Cartesian explosion) több
+    kollekció Include esetén.
+
+  BookmarkRepository.cs:
+    Include(Question).ThenInclude(Topic) a könyvjelzők megjelenítéséhez.
+    Rendez CreatedAt szerint csökkenő sorrendben.
+
+================================================================================
+4. BUSINESS LOGIC RÉTEG (JobInterviewBusinessLogic)
+================================================================================
+
+Az összes üzleti logika, algoritmus és feldolgozó logika itt található.
+A szolgáltatások Dependency Injection-nel kapják meg a repository-kat.
+
+--- Services/PracticeService.cs ---
+  A gyakorló mód motorja, két kiválasztási algoritmussal:
+
+  GetRandomQuestionAsync():
+    Egyszerű véletlen választás az összes kérdés közül.
+
+  GetAdaptiveQuestionAsync():
+    Súlyozott véletlen kiválasztás. Minden kérdéshez súly számítása:
+      base = 1.0
+      + (hibás válaszok száma * 2)
+      + régiség: 7+ nap = +1, 14+ nap = +2, 30+ nap = +3
+      + alacsony pontosság: <30% = +3, <50% = +2
+      + soha nem próbált = +3
+      + alacsony átlag rating: <2.5 = +3, <3.5 = +1
+
+    Weighted Random Selection algoritmusa:
+      1. Kiszámítja az összes súly összegét (totalWeight)
+      2. Generál egy random értéket [0, totalWeight) között
+      3. Végigmegy a kérdéseken, kumulálja a súlyokat
+      4. Ahol a kumulatív súly eléri a random értéket, azt választja
+    Ez biztosítja, hogy a nagyobb súlyú (nehezebb, régebben kérdezett,
+    rosszabbul megválaszolt) kérdések nagyobb eséllyel kerüljenek elő.
+
+  RecordAttemptAsync() / RecordRatingAsync():
+    A felhasználó válaszának és értékelésének rögzítése.
+
+--- Services/StatisticsService.cs ---
+  LINQ-alapú statisztikai számítások.
+
+  GetQuestionStatsAsync(): kérdésenkénti pontosság és átlag rating
+  GetTopicStatsAsync(): témakörönkénti aggregált teljesítmény
+    (GroupBy TopicId, Sum attempts, Sum correct)
+  GetWeakestTopicsAsync(): legalacsonyabb pontosságú témák (rendezve)
+  GetMostMissedQuestionsAsync(): legtöbb hibás válasz
+  GetBestQuestionsAsync(): legmagasabb pontosságú kérdések
+
+--- Services/DailyPackageService.cs ---
+  Napi gyakorló csomag generálása (alapértelmezetten 10 kérdés):
+    50% - gyenge témákból (GetWeakestTopicsAsync TOP 3 alapján)
+    20% - új, soha nem próbált kérdések
+    30% - random feltöltés
+  HashSet-tel biztosítja, hogy ne legyen duplikáció.
+  A végeredményt Fisher-Yates shuffle-lel keveri össze.
+
+--- Services/ImportExportService.cs ---
+  JSON formátumú import/export System.Text.Json-nal.
+
+  ExportQuestionsAsync():
+    Összes kérdés betöltése részletekkel, átalakítás QuestionExportDto-ra,
+    szerializálás formázott JSON-ba, fájlba írás.
+
+  ImportQuestionsAsync():
+    Teljes validációval:
+    - Fájl-létezés ellenőrzés
+    - JSON deszerializáció hiba-kezeléssel
+    - Üres szövegű kérdések kihagyása
+    - Érvénytelen nehézség kihagyása (Enum.TryParse)
+    - Hiányzó témakör kihagyása
+    - Automatikus témakör létrehozás ha még nem létezik
+    - Duplikáció ellenőrzés (Text összehasonlítás case-insensitive)
+    Visszaadja: (importált db, kihagyott db, hibák listája)
+
+--- Services/WeeklySummaryService.cs ---
+  Heti összefoglaló generálás és e-mail küldés.
+
+  GenerateWeeklySummaryAsync():
+    Az utolsó 7 nap Attempt-jeit lekérdezi predikátum alapján,
+    összesíti a statisztikákat, meghatározza a leggyengébb és
+    legerősebb témákat.
+
+  SendWeeklyEmailAsync():
+    MailKit/MimeKit használata SMTP e-mail küldésre.
+    Formázott HTML e-mail sablon gradiens headerrel és táblázattal.
+    Konfiguráció az appsettings.json SmtpSettings szekciójából.
+    Visszatér false-szal ha az SMTP nincs konfigurálva.
+
+--- Services/QuestionService.cs ---
+  Egyszerű CRUD műveletek a kérdésekhez és témakörökhöz.
+  AddQuestionAsync(): új kérdés szöveggel, válasszal, témakörrel, nehézséggel
+  GetAllQuestionsAsync(): összes kérdés részletekkel
+  GetAllTopicsAsync(): összes témakör
+  AddTopicAsync(): új témakör
+  DeleteQuestionAsync(): kérdés törlése ID alapján
+
+--- Services/BookmarkService.cs ---
+  Könyvjelző kezelés duplikáció-védelemmel.
+  AddBookmarkAsync(): ellenőrzi, hogy már létezik-e
+  RemoveBookmarkAsync(): törlés, false ha nem található
+  GetAllBookmarksAsync(): összes könyvjelző kérdés-adatokkal
+  IsBookmarkedAsync(): ellenőrzés predikátum alapján
+
+================================================================================
+5. PRESENTATION RÉTEG (JobInterviewConsolePresentation)
+================================================================================
+
+A felhasználói felület rétege - konzol alkalmazás Spectre.Console könyvtárral.
+
+--- Program.cs ---
+  Az alkalmazás belépési pontja. Feladatai:
+
+  1. Konfiguráció betöltése (appsettings.json - ConnectionString, SMTP)
+  2. Dependency Injection konténer felépítése:
+     - DbContext regisztráció SQL Server provider-rel
+     - Repository-k regisztrációja (generikus + specifikus)
+     - Service-ek regisztrációja (mind Scoped életciklussal)
+     - IConfiguration mint Singleton
+     - ConsoleApp mint Scoped
+  3. Adatbázis inicializálás:
+     - EnsureCreatedAsync() - létrehozza ha még nem létezik
+     - Schema verzió ellenőrzés (Answer oszlop létezésének vizsgálata)
+     - Ha a schema elavult, törli és újraépíti az adatbázist
+     - DbSeeder.SeedAsync() - feltölti az alap adatokkal
+  4. ConsoleApp példányosítás és indítás DI scope-ban
+
+--- ConsoleApp.cs ---
+  Az interaktív konzolos felület. Spectre.Console szolgáltatások:
+  - FigletText: nagy ASCII-art fejléc ("Interview Prep")
+  - SelectionPrompt: nyilakkal navigálható menük
+  - Table: formázott táblázatok szegéllyel és színezéssel
+  - Panel: keretezett szövegblokkok fejléccel
+  - Rule: vízszintes elválasztó vonalak
+  - Status/Spinner: töltési animáció adatbázis műveletnél
+  - TextPrompt: validált szöveges bemenet
+  - Confirm: igen/nem kérdés
+
+  Főmenü (8 opció):
+    1. Gyakorló mód - Random vagy Adaptív választható
+    2. Kérdés hozzáadása - Témakör, nehézség, szöveg, válasz megadása
+    3. Statisztikák - 5 különböző statisztikai nézet (almenük)
+    4. Könyvjelzők - Lista és törlés lehetőség
+    5. Import/Export - JSON fájl kezelése
+    6. Napi csomag - 10 kérdéses gyakorló csomag
+    7. Heti összefoglaló - 7 napos riport + opcionális e-mail
+    8. Kilépés
+
+  Gyakorló mód flow:
+    1. Kérdés megjelenítése panelben (ID, témakör, nehézség színekkel)
+    2. "Gondolkodj, majd nyomj ENTER-t..." várakozás
+    3. VÁLASZ MEGJELENÍTÉSE zöld keretben (ez segít az önellenőrzésben)
+    4. "Tudtad a választ?" - Igen/Nem választás
+    5. Attempt mentés az adatbázisba
+    6. Értékelés (1-5 skála) - Rating mentés
+    7. Könyvjelző opció
+    8. Következő kérdés vagy összegzés
+
+--- appsettings.json ---
+  Alkalmazás konfiguráció:
+  - ConnectionStrings.DefaultConnection: MSSQL Express connection string
+  - SmtpSettings: e-mail konfiguráció (host, port, user, pass, from)
+
+================================================================================
+6. HASZNÁLT TECHNOLÓGIÁK ÉS NUGET CSOMAGOK
+================================================================================
+
+  Microsoft.EntityFrameworkCore - ORM keretrendszer
+  Microsoft.EntityFrameworkCore.SqlServer - MSSQL provider
+  Microsoft.EntityFrameworkCore.Tools - migrációs eszközök
+  Microsoft.EntityFrameworkCore.Design - design-time eszközök
+  Microsoft.Extensions.DependencyInjection - DI konténer
+  Microsoft.Extensions.Configuration - konfiguráció-kezelés
+  Microsoft.Extensions.Configuration.Json - JSON konfiguráció
+  Microsoft.Extensions.Logging.Console - konzol naplózás
+  MailKit - SMTP e-mail küldés
+  MimeKit - e-mail üzenet-építése (HTML)
+  Spectre.Console - gazdag konzol UI (táblák, panelek, animációk)
+
+================================================================================
+7. ADATBÁZIS
+================================================================================
+
+  Adatbázis: MSSQL Express (LocalDB vagy .\SQLEXPRESS)
+  Név: JobInterviewDB
+  Létrehozás: automatikus (EnsureCreatedAsync)
+
+  Táblák:
+    Topics (Id, Name)
+    Questions (Id, Text, Answer, TopicId, Difficulty, CreatedAt)
+    Attempts (Id, QuestionId, Correct, AttemptedAt)
+    Ratings (Id, QuestionId, Score, CreatedAt)
+    Bookmarks (Id, QuestionId, CreatedAt)
+
+  Kapcsolatok:
+    Question --> Topic (Many-to-One, FK: TopicId, Restrict delete)
+    Attempt --> Question (Many-to-One, FK: QuestionId, Cascade delete)
+    Rating --> Question (Many-to-One, FK: QuestionId, Cascade delete)
+    Bookmark --> Question (One-to-One, FK: QuestionId, Unique, Cascade delete)
+
+================================================================================
+8. FŐBB ALGORITMUSOK
+================================================================================
+
+  ADAPTÍV SÚLYOZOTT KIVÁLASZTÁS:
+    Cél: a gyengébb kérdéseket gyakrabban kérdezni.
+    Minden kérdéshez kiszámítunk egy súlyt több szempont alapján
+    (hibák száma, régiség, nehézség, rating). Majd a súlyok arányában
+    valószínűségi eloszlást képezünk és abból választunk véletlenszerűen.
+    Ez biztosítja, hogy a nehezebb/elrontott kérdések többször előkerüljenek
+    de a könnyűek sem tűnnek el teljesen.
+
+  NAPI CSOMAG GENERÁLÁS:
+    50% - a felhasználó leggyengébb 3 témaköréből,
+    20% - soha nem próbált (új) kérdések,
+    30% - véletlen (a maradék kérdésekből).
+    Duplikáció-mentes (HashSet), összkeverés (Fisher-Yates shuffle).
+
+  STATISZTIKAI AGGREGÁCIÓK:
+    LINQ GroupBy + Sum/Count/Average a témakörönkénti és kérdésenkénti
+    teljesítmény számításához. Rendezések OrderBy/OrderByDescending.
+
+================================================================================
+  Készítette: .NET 10 / C# / Entity Framework Core / Spectre.Console
+================================================================================
