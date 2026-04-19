@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="JobInterviewBusinessLogic/JobInterviewBusinessLogic.csproj" />
+  <Project Path="JobInterviewConsolePresentation/JobInterviewConsolePresentation.csproj" />
+  <Project Path="JobInterviewCore/JobInterviewCore.csproj" />
+  <Project Path="JobInterviewDataAccess/JobInterviewDataAccess.csproj" />
+</Solution>
