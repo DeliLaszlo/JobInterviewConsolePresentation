@@ -6,8 +6,8 @@ namespace JobInterviewCore.Interfaces;
 
 public interface IPracticeService
 {
-    Task<Question?> GetRandomQuestionAsync();
-    Task<Question?> GetAdaptiveQuestionAsync();
+    Task<Question?> GetRandomQuestionAsync(IEnumerable<int> tabooIds);
+    Task<Question?> GetAdaptiveQuestionAsync(IEnumerable<int> tabooIds);
     Task RecordAttemptAsync(int questionId, bool correct);
     Task RecordRatingAsync(int questionId, int score);
 }
@@ -46,6 +46,7 @@ public interface IQuestionService
     Task<Topic> AddTopicAsync(string name);
     Task<int> GetTotalQuestionCountAsync();
     Task<bool> DeleteQuestionAsync(int id);
+    Task<bool> DeleteTopicAsync(int id);
 }
 
 public interface IBookmarkService

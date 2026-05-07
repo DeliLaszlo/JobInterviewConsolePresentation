@@ -70,7 +70,7 @@ public class WeeklySummaryService : IWeeklySummaryService
         var port = int.TryParse(smtp["Port"], out var p) ? p : 587;
         var username = smtp["Username"];
         var password = smtp["Password"];
-        var fromEmail = smtp["FromEmail"];
+        var fromEmail = smtp["FromEmail"] ?? "allasinterju@example.com";
         var fromName = smtp["FromName"] ?? "Állásinterjú Gyakorló";
 
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(username))
@@ -149,11 +149,17 @@ public class WeeklySummaryService : IWeeklySummaryService
         message.Body = bodyBuilder.ToMessageBody();
 
         using var client = new SmtpClient();
-        await client.ConnectAsync(host, port, MailKit.Security.SecureSocketOptions.StartTls);
-        await client.AuthenticateAsync(username, password);
-        await client.SendAsync(message);
-        await client.DisconnectAsync(true);
-
-        return true;
+        try
+        {
+            await client.ConnectAsync(host, port, MailKit.Security.SecureSocketOptions.StartTls);
+            await client.AuthenticateAsync(username ?? "", password ?? "");
+            await client.SendAsync(message);
+            await client.DisconnectAsync(true);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

@@ -1,8 +1,9 @@
-﻿using JobInterviewCore.DTOs;
+using JobInterviewCore.DTOs;
 using JobInterviewCore.Entities;
 using JobInterviewCore.Enums;
 using JobInterviewCore.Interfaces;
 using Spectre.Console;
+using Microsoft.Extensions.Configuration;
 
 namespace JobInterviewConsolePresentation;
 
@@ -15,6 +16,7 @@ public class ConsoleApp
     private readonly IWeeklySummaryService _weeklySummaryService;
     private readonly IQuestionService _questionService;
     private readonly IBookmarkService _bookmarkService;
+    private readonly IConfiguration _configuration;
 
     public ConsoleApp(
         IPracticeService practiceService,
@@ -23,7 +25,8 @@ public class ConsoleApp
         IImportExportService importExportService,
         IWeeklySummaryService weeklySummaryService,
         IQuestionService questionService,
-        IBookmarkService bookmarkService)
+        IBookmarkService bookmarkService,
+        IConfiguration configuration)
     {
         _practiceService = practiceService;
         _statisticsService = statisticsService;
@@ -32,6 +35,7 @@ public class ConsoleApp
         _weeklySummaryService = weeklySummaryService;
         _questionService = questionService;
         _bookmarkService = bookmarkService;
+        _configuration = configuration;
     }
 
     //  Főmenü
@@ -50,7 +54,7 @@ public class ConsoleApp
                     .HighlightStyle(new Style(Color.DodgerBlue2))
                     .AddChoices(
                         "1. Gyakorlo mod",
-                        "2. Kerdes hozzaadasa",
+                        "2. Kerdesek es temak kezelese",
                         "3. Statisztikak",
                         "4. Konyvjelzok",
                         "5. Import / Export",
@@ -66,8 +70,8 @@ public class ConsoleApp
                 case "1. Gyakorlo mod":
                     await PracticeModeAsync();
                     break;
-                case "2. Kerdes hozzaadasa":
-                    await AddQuestionAsync();
+                case "2. Kerdesek es temak kezelese":
+                    await ManageQuestionsAndTopicsAsync();
                     break;
                 case "3. Statisztikak":
                     await ShowStatisticsMenuAsync();
@@ -126,6 +130,9 @@ public class ConsoleApp
         int questionCount = 0;
         int correctCount = 0;
 
+        var tabooSizeStr = _configuration.GetSection("AppConfiguration")?["TabooListSize"];
+        int tabooSize = int.TryParse(tabooSizeStr, out var ts) ? ts : 10;
+
         int totalQuestionCount = await _questionService.GetTotalQuestionCountAsync();
         var recentQuestionsIds = new List<int>();
 
@@ -136,13 +143,9 @@ public class ConsoleApp
                 recentQuestionsIds.Clear();
             }
 
-            Question? question;
-            do
-            {
-                question = adaptive
-                    ? await _practiceService.GetAdaptiveQuestionAsync()
-                    : await _practiceService.GetRandomQuestionAsync();
-            } while (recentQuestionsIds.Contains(question.Id));
+            Question? question = adaptive
+                ? await _practiceService.GetAdaptiveQuestionAsync(recentQuestionsIds)
+                : await _practiceService.GetRandomQuestionAsync(recentQuestionsIds);
 
             if (question == null)
             {
@@ -152,7 +155,7 @@ public class ConsoleApp
 
             questionCount++;
             recentQuestionsIds.Add(question.Id);
-            if (recentQuestionsIds.Count >= 10) recentQuestionsIds.RemoveAt(0);
+            if (recentQuestionsIds.Count > tabooSize) recentQuestionsIds.RemoveAt(0);
 
             var diffColor = question.Difficulty switch
             {
@@ -181,8 +184,13 @@ public class ConsoleApp
             };
             AnsiConsole.Write(panel);
 
-            AnsiConsole.MarkupLine("\n[grey italic]Gondolkodj a valaszon, majd nyomj [bold]ENTER[/]-t a valasz megjelenitsehez...[/]");
-            Console.ReadLine();
+            AnsiConsole.MarkupLine("\n[grey italic]Gondolkodj a valaszon, majd nyomj [bold]ENTER[/]-t a valaszhoz, vagy [bold]ESC[/]-t a fomenube valo visszatereshez...[/]");
+            while (true)
+            {
+                var keyInfo = Console.ReadKey(intercept: true);
+                if (keyInfo.Key == ConsoleKey.Enter) break;
+                if (keyInfo.Key == ConsoleKey.Escape) return;
+            }
 
             var answerPanel = new Panel(
                 new Markup($"[bold green]{Markup.Escape(question.Answer)}[/]"))
@@ -249,6 +257,38 @@ public class ConsoleApp
         AnsiConsole.Write(summaryPanel);
     }
 
+    //  Kérdések és Témák kezelése
+    private async Task ManageQuestionsAndTopicsAsync()
+    {
+        while (true)
+        {
+            var choice = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("[bold dodgerblue2]=== Kerdesek es temak kezelese ===[/]")
+                    .HighlightStyle(new Style(Color.DodgerBlue2))
+                    .AddChoices(
+                        "1. Uj kerdes hozzaadasa",
+                        "2. Kerdes torlese",
+                        "3. Tema torlese",
+                        "<< Vissza a fomenube"));
+
+            switch (choice)
+            {
+                case "1. Uj kerdes hozzaadasa":
+                    await AddQuestionAsync();
+                    break;
+                case "2. Kerdes torlese":
+                    await DeleteQuestionAsync();
+                    break;
+                case "3. Tema torlese":
+                    await DeleteTopicAsync();
+                    break;
+                default:
+                    return;
+            }
+        }
+    }
+
     //  Kérdés hozzáadása
     private async Task AddQuestionAsync()
     {
@@ -265,13 +305,23 @@ public class ConsoleApp
                 .AddChoices(topicChoices));
 
         Topic topic;
-        if (topicChoice == "[+] Uj temakor letrehozasa")
+        if (topicChoice == "[[+]] Uj temakor letrehozasa")
         {
             var topicName = AnsiConsole.Prompt(
-                new TextPrompt<string>("[bold]Uj temakor neve:[/]")
-                    .Validate(n => !string.IsNullOrWhiteSpace(n)
-                        ? ValidationResult.Success()
-                        : ValidationResult.Error("[red]A nev nem lehet ures![/]")));
+                new TextPrompt<string>("[bold]Uj temakor neve ([yellow]vagy ird be: 'x' a kilepeshez[/]):[/]")
+                    .Validate(n =>
+                    {
+                        if (n.Trim().ToLower() == "x") return ValidationResult.Success();
+                        return !string.IsNullOrWhiteSpace(n)
+                            ? ValidationResult.Success()
+                            : ValidationResult.Error("[red]A nev nem lehet ures![/]");
+                    }));
+
+            if (topicName.Trim().ToLower() == "x")
+            {
+                AnsiConsole.MarkupLine("[yellow]Hozzaadas megszakitva.[/]");
+                return;
+            }
 
             topic = await _questionService.AddTopicAsync(topicName);
             AnsiConsole.MarkupLine($"[green]Temakor letrehozva: {Markup.Escape(topic.Name)}[/]");
@@ -299,16 +349,36 @@ public class ConsoleApp
         };
 
         var text = AnsiConsole.Prompt(
-            new TextPrompt<string>("[bold]Kerdes szovege:[/]")
-                .Validate(t => !string.IsNullOrWhiteSpace(t) && t.Length >= 10
-                    ? ValidationResult.Success()
-                    : ValidationResult.Error("[red]A kerdes legalabb 10 karakter legyen![/]")));
+            new TextPrompt<string>("[bold]Kerdes szovege ([yellow]vagy ird be: 'x' a kilepeshez[/]):[/]")
+                .Validate(t =>
+                {
+                    if (t.Trim().ToLower() == "x") return ValidationResult.Success();
+                    return !string.IsNullOrWhiteSpace(t) && t.Length >= 10
+                        ? ValidationResult.Success()
+                        : ValidationResult.Error("[red]A kerdes legalabb 10 karakter legyen![/]");
+                }));
+
+        if (text.Trim().ToLower() == "x")
+        {
+            AnsiConsole.MarkupLine("[yellow]Hozzaadas megszakitva.[/]");
+            return;
+        }
 
         var answer = AnsiConsole.Prompt(
-            new TextPrompt<string>("[bold]Valasz szovege:[/]")
-                .Validate(a => !string.IsNullOrWhiteSpace(a) && a.Length >= 5
-                    ? ValidationResult.Success()
-                    : ValidationResult.Error("[red]A valasz legalabb 5 karakter legyen![/]")));
+            new TextPrompt<string>("[bold]Valasz szovege ([yellow]vagy ird be: 'x' a kilepeshez[/]):[/]")
+                .Validate(a =>
+                {
+                    if (a.Trim().ToLower() == "x") return ValidationResult.Success();
+                    return !string.IsNullOrWhiteSpace(a) && a.Length >= 5
+                        ? ValidationResult.Success()
+                        : ValidationResult.Error("[red]A valasz legalabb 5 karakter legyen![/]");
+                }));
+
+        if (answer.Trim().ToLower() == "x")
+        {
+            AnsiConsole.MarkupLine("[yellow]Hozzaadas megszakitva.[/]");
+            return;
+        }
 
         var question = await _questionService.AddQuestionAsync(text, answer, topic.Id, difficulty);
 
@@ -319,6 +389,66 @@ public class ConsoleApp
             AnsiConsole.Clear();
             DisplayBanner();
             await AddQuestionAsync();
+        }
+    }
+
+    private async Task DeleteQuestionAsync()
+    {
+        var questions = await _questionService.GetAllQuestionsAsync();
+        if (questions.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]Nincsenek kerdesek.[/]");
+            return;
+        }
+
+        var qDict = questions.ToDictionary(q => $"{q.Id} - {(q.Text.Length > 50 ? q.Text.Substring(0, 47) + "..." : q.Text)}");
+        var choices = qDict.Keys.ToList();
+        choices.Add("<< Vissza");
+
+        var choice = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[bold]Valassz kerdest a torleshez:[/]")
+                .PageSize(10)
+                .AddChoices(choices));
+
+        if (choice == "<< Vissza") return;
+
+        var qToDelete = qDict[choice];
+
+        if (AnsiConsole.Confirm($"[bold red]Biztosan torlod ezt a kerdest (ID: {qToDelete.Id})?[/]", false))
+        {
+            await _questionService.DeleteQuestionAsync(qToDelete.Id);
+            AnsiConsole.MarkupLine("[green]Kerdes sikeresen torolve![/]");
+        }
+    }
+
+    private async Task DeleteTopicAsync()
+    {
+        var topics = await _questionService.GetAllTopicsAsync();
+        if (topics.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]Nincsenek temak.[/]");
+            return;
+        }
+
+        var tDict = topics.ToDictionary(t => t.Name);
+        var choices = tDict.Keys.ToList();
+        choices.Add("<< Vissza");
+
+        var choice = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[bold]Valassz temat a torleshez:[/]")
+                .PageSize(10)
+                .AddChoices(choices));
+
+        if (choice == "<< Vissza") return;
+
+        var tToDelete = tDict[choice];
+
+        if (AnsiConsole.Confirm($"[bold red]Biztosan torlod a(z) '{Markup.Escape(tToDelete.Name)}' temat es az osszes hozza tartozo kerdest?[/]", false))
+        {
+            await _questionService.DeleteTopicAsync(tToDelete.Id);
+            AnsiConsole.MarkupLine("[green]Tema es a hozza tartozo kerdesek sikeresen torolve![/]");
         }
     }
 
@@ -686,6 +816,9 @@ public class ConsoleApp
     {
         AnsiConsole.Write(new Rule("[bold dodgerblue2] Napi Gyakorlo Csomag [/]").RuleStyle("dodgerblue2"));
 
+        var packageSizeStr = _configuration.GetSection("AppConfiguration")?["DailyPackageQuestions"];
+        int packageSize = int.TryParse(packageSizeStr, out var ps) ? ps : 10;
+
         List<Question> package = null!;
 
         await AnsiConsole.Status()
@@ -693,10 +826,10 @@ public class ConsoleApp
             .SpinnerStyle(new Style(Color.DodgerBlue2))
             .StartAsync("Napi csomag generalasa...", async _ =>
             {
-                package = await _dailyPackageService.GenerateDailyPackageAsync();
+                package = await _dailyPackageService.GenerateDailyPackageAsync(packageSize);
             });
 
-        if (package.Count == 0)
+        if (package == null || package.Count == 0)
         {
             AnsiConsole.MarkupLine("[yellow]Nincs eleg kerdes a napi csomaghoz.[/]");
             return;
@@ -741,6 +874,7 @@ public class ConsoleApp
     private async Task PracticeFromPackageAsync(List<Question> package)
     {
         int correct = 0;
+        int answered = 0;
         int total = package.Count;
 
         for (int i = 0; i < total; i++)
@@ -768,8 +902,20 @@ public class ConsoleApp
             };
             AnsiConsole.Write(panel);
 
-            AnsiConsole.MarkupLine("\n[grey italic]Gondolkodj, majd nyomj ENTER-t a valasz megjelenitsehez...[/]");
-            Console.ReadLine();
+            AnsiConsole.MarkupLine("\n[grey italic]Gondolkodj, majd nyomj ENTER-t a valaszhoz, vagy ESC-t a kilepeshez...[/]");
+            bool quitEarly = false;
+            while (true)
+            {
+                var keyInfo = Console.ReadKey(intercept: true);
+                if (keyInfo.Key == ConsoleKey.Enter) break;
+                if (keyInfo.Key == ConsoleKey.Escape)
+                {
+                    quitEarly = true;
+                    break;
+                }
+            }
+
+            if (quitEarly) break;
 
             var answerPanel = new Panel(
                 new Markup($"[bold green]{Markup.Escape(question.Answer)}[/]"))
@@ -790,6 +936,7 @@ public class ConsoleApp
 
             bool isCorrect = answer == "Igen";
             if (isCorrect) correct++;
+            answered++;
 
             await _practiceService.RecordAttemptAsync(question.Id, isCorrect);
 
@@ -806,9 +953,9 @@ public class ConsoleApp
 
         var summaryPanel = new Panel(
             new Markup(
-                $"[bold]Kerdesek:[/] {total}\n" +
-                $"[bold]Helyes:[/] [green]{correct}[/] / {total}\n" +
-                $"[bold]Pontossag:[/] {(total > 0 ? Math.Round((double)correct / total * 100, 1) : 0)}%"))
+                $"[bold]Megvalaszolt kerdesek:[/] {answered}\n" +
+                $"[bold]Helyes:[/] [green]{correct}[/] / {answered}\n" +
+                $"[bold]Pontossag:[/] {(answered > 0 ? Math.Round((double)correct / answered * 100, 1) : 0)}%"))
         {
             Header = new PanelHeader("[bold dodgerblue2] Napi csomag eredmenye [/]"),
             Border = BoxBorder.Double,

@@ -68,4 +68,20 @@ public class QuestionService : IQuestionService
         await _questionRepo.DeleteAsync(question);
         return true;
     }
+
+    // Témakör törlése azonosító alapján (és a hozzá tartozó kérdések törlése is).
+    public async Task<bool> DeleteTopicAsync(int id)
+    {
+        var topic = await _topicRepo.GetByIdAsync(id);
+        if (topic == null) return false;
+
+        var questions = await _questionRepo.GetByTopicAsync(id);
+        foreach (var q in questions)
+        {
+            await _questionRepo.DeleteAsync(q);
+        }
+
+        await _topicRepo.DeleteAsync(topic);
+        return true;
+    }
 }
