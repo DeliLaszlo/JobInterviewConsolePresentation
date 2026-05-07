@@ -23,9 +23,7 @@ public class WeeklySummaryService : IWeeklySummaryService
         _configuration = configuration;
     }
 
-    /// <summary>
-    /// Heti összefoglaló generálása az utolsó 7 nap adataiból.
-    /// </summary>
+    // Heti összefoglaló generálása az utolsó 7 nap adataiból.
     public async Task<WeeklySummaryDto> GenerateWeeklySummaryAsync()
     {
         var weekEnd = DateTime.UtcNow;
@@ -63,10 +61,8 @@ public class WeeklySummaryService : IWeeklySummaryService
         };
     }
 
-    /// <summary>
-    /// Heti összefoglaló küldése e-mailben (MailKit + SMTP).
-    /// Az SMTP beállítások az appsettings.json SmtpSettings szekciójából jönnek.
-    /// </summary>
+    // Heti összefoglaló küldése e-mailben (MailKit + SMTP).
+    // Az SMTP beállítások az appsettings.json SmtpSettings szekciójából jönnek.
     public async Task<bool> SendWeeklyEmailAsync(string recipientEmail)
     {
         var smtp = _configuration.GetSection("SmtpSettings");
@@ -89,7 +85,7 @@ public class WeeklySummaryService : IWeeklySummaryService
         <html>
         <body style='font-family: Segoe UI, Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
             <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0;'>
-                <h1 style='color: white; margin: 0;'>📊 Heti Összefoglaló</h1>
+                <h1 style='color: white; margin: 0;'>Heti Összefoglaló</h1>
                 <p style='color: rgba(255,255,255,0.8); margin: 5px 0 0;'>
                     {summary.WeekStart:yyyy.MM.dd} – {summary.WeekEnd:yyyy.MM.dd}
                 </p>

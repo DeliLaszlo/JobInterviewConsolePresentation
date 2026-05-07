@@ -16,7 +16,7 @@ public class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // ── Question ──
+        // Question
         modelBuilder.Entity<Question>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -33,7 +33,7 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.TopicId);
         });
 
-        // ── Topic ──
+        // Topic
         modelBuilder.Entity<Topic>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -41,7 +41,7 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.Name).IsUnique();
         });
 
-        // ── Attempt ──
+        // Attempt
         modelBuilder.Entity<Attempt>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -55,7 +55,7 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.QuestionId);
         });
 
-        // ── Rating ──
+        // Rating
         modelBuilder.Entity<Rating>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -70,7 +70,7 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.QuestionId);
         });
 
-        // ── Bookmark ──
+        // Bookmark 
         modelBuilder.Entity<Bookmark>(entity =>
         {
             entity.HasKey(e => e.Id);

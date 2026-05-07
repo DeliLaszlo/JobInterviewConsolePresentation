@@ -34,10 +34,7 @@ public class ConsoleApp
         _bookmarkService = bookmarkService;
     }
 
-    // =============================================
-    //  Fomenu
-    // =============================================
-
+    //  Főmenü
     public async Task RunAsync()
     {
         AnsiConsole.Clear();
@@ -107,10 +104,7 @@ public class ConsoleApp
                 .Centered());
     }
 
-    // =============================================
-    //  Gyakorlo mod
-    // =============================================
-
+    //  Gyakorló mód
     private async Task PracticeModeAsync()
     {
         var mode = AnsiConsole.Prompt(
@@ -132,11 +126,23 @@ public class ConsoleApp
         int questionCount = 0;
         int correctCount = 0;
 
+        int totalQuestionCount = await _questionService.GetTotalQuestionCountAsync();
+        var recentQuestionsIds = new List<int>();
+
         while (true)
         {
-            var question = adaptive
-                ? await _practiceService.GetAdaptiveQuestionAsync()
-                : await _practiceService.GetRandomQuestionAsync();
+            if (recentQuestionsIds.Count >= totalQuestionCount)
+            {
+                recentQuestionsIds.Clear();
+            }
+
+            Question? question;
+            do
+            {
+                question = adaptive
+                    ? await _practiceService.GetAdaptiveQuestionAsync()
+                    : await _practiceService.GetRandomQuestionAsync();
+            } while (recentQuestionsIds.Contains(question.Id));
 
             if (question == null)
             {
@@ -145,8 +151,9 @@ public class ConsoleApp
             }
 
             questionCount++;
+            recentQuestionsIds.Add(question.Id);
+            if (recentQuestionsIds.Count >= 10) recentQuestionsIds.RemoveAt(0);
 
-            // Kerdes megjelenitese
             var diffColor = question.Difficulty switch
             {
                 Difficulty.Easy => "green",
@@ -174,11 +181,9 @@ public class ConsoleApp
             };
             AnsiConsole.Write(panel);
 
-            // Gondolkodas
             AnsiConsole.MarkupLine("\n[grey italic]Gondolkodj a valaszon, majd nyomj [bold]ENTER[/]-t a valasz megjelenitsehez...[/]");
             Console.ReadLine();
 
-            // Valasz megjelenitese
             var answerPanel = new Panel(
                 new Markup($"[bold green]{Markup.Escape(question.Answer)}[/]"))
             {
@@ -190,7 +195,6 @@ public class ConsoleApp
             AnsiConsole.Write(answerPanel);
             AnsiConsole.WriteLine();
 
-            // Onertekeles
             var correct = AnsiConsole.Prompt(
                 new SelectionPrompt<string>()
                     .Title("[bold]Tudtad a helyes valaszt?[/]")
@@ -205,11 +209,10 @@ public class ConsoleApp
             if (isCorrect)
                 AnsiConsole.MarkupLine("[bold green]Szep munka![/]");
             else
-                AnsiConsole.MarkupLine("[bold yellow]Ne csugged, gyakorolj tovabb![/]");
+                AnsiConsole.MarkupLine("[bold yellow]Ne csuggedj, gyakorolj tovabb![/]");
 
-            // Ertekeles
             var rating = AnsiConsole.Prompt(
-                new TextPrompt<int>("[grey]Ertekeld a kerdes nehezsget/minoseget (1-5):[/]")
+                new TextPrompt<int>("[grey]Ertekeld a kerdes nehezsget (1 nagyon nehez - 5 nagyon konnyu):[/]")
                     .DefaultValue(3)
                     .Validate(r => r is >= 1 and <= 5
                         ? ValidationResult.Success()
@@ -217,8 +220,7 @@ public class ConsoleApp
 
             await _practiceService.RecordRatingAsync(question.Id, rating);
 
-            // Konyvjelzo
-            if (AnsiConsole.Confirm("[grey]Hozzaadod a konyvjelzokhz?[/]", false))
+            if (AnsiConsole.Confirm("[grey]Hozzaadod a konyvjelzokhoz?[/]", false))
             {
                 await _bookmarkService.AddBookmarkAsync(question.Id);
                 AnsiConsole.MarkupLine("[green]Konyvjelzo mentve![/]");
@@ -226,14 +228,12 @@ public class ConsoleApp
 
             AnsiConsole.Write(new Rule().RuleStyle("grey"));
 
-            // Folytatas
             if (!AnsiConsole.Confirm("[bold]Kovetkezo kerdes?[/]", true))
                 break;
 
             AnsiConsole.WriteLine();
         }
 
-        // Osszesites
         AnsiConsole.WriteLine();
         var summaryPanel = new Panel(
             new Markup(
@@ -249,18 +249,14 @@ public class ConsoleApp
         AnsiConsole.Write(summaryPanel);
     }
 
-    // =============================================
-    //  Kerdes hozzaadasa
-    // =============================================
-
+    //  Kérdés hozzáadása
     private async Task AddQuestionAsync()
     {
         AnsiConsole.Write(new Rule("[bold dodgerblue2] Uj kerdes hozzaadasa [/]").RuleStyle("dodgerblue2"));
 
-        // Temakor kivalasztasa
         var topics = await _questionService.GetAllTopicsAsync();
         var topicChoices = topics.Select(t => t.Name).ToList();
-        topicChoices.Add("[+] Uj temakor letrehozasa");
+        topicChoices.Add("[[+]] Uj temakor letrehozasa");
 
         var topicChoice = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
@@ -285,7 +281,6 @@ public class ConsoleApp
             topic = topics.First(t => t.Name == topicChoice);
         }
 
-        // Nehezseg
         var diffChoice = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("[bold]Nehezsegi szint:[/]")
@@ -303,14 +298,12 @@ public class ConsoleApp
             _ => Difficulty.Medium
         };
 
-        // Kerdes szovege
         var text = AnsiConsole.Prompt(
             new TextPrompt<string>("[bold]Kerdes szovege:[/]")
                 .Validate(t => !string.IsNullOrWhiteSpace(t) && t.Length >= 10
                     ? ValidationResult.Success()
                     : ValidationResult.Error("[red]A kerdes legalabb 10 karakter legyen![/]")));
 
-        // Valasz szovege
         var answer = AnsiConsole.Prompt(
             new TextPrompt<string>("[bold]Valasz szovege:[/]")
                 .Validate(a => !string.IsNullOrWhiteSpace(a) && a.Length >= 5
@@ -321,7 +314,6 @@ public class ConsoleApp
 
         AnsiConsole.MarkupLine($"\n[bold green]Kerdes sikeresen hozzaadva! (ID: {question.Id})[/]");
 
-        // Meg egyet?
         if (AnsiConsole.Confirm("[grey]Szeretnel meg egy kerdest hozzaadni?[/]", false))
         {
             AnsiConsole.Clear();
@@ -330,10 +322,7 @@ public class ConsoleApp
         }
     }
 
-    // =============================================
-    //  Statisztikak
-    // =============================================
-
+    //  Statisztikák
     private async Task ShowStatisticsMenuAsync()
     {
         while (true)
@@ -579,10 +568,7 @@ public class ConsoleApp
         };
     }
 
-    // =============================================
-    //  Konyvjelzok
-    // =============================================
-
+    //  Könyvjelzők
     private async Task ShowBookmarksAsync()
     {
         var bookmarks = await _bookmarkService.GetAllBookmarksAsync();
@@ -614,7 +600,6 @@ public class ConsoleApp
 
         AnsiConsole.Write(table);
 
-        // Torles lehetosege
         if (AnsiConsole.Confirm("\n[grey]Szeretnel konyvjelzot torolni?[/]", false))
         {
             var qId = AnsiConsole.Prompt(
@@ -627,10 +612,7 @@ public class ConsoleApp
         }
     }
 
-    // =============================================
     //  Import / Export
-    // =============================================
-
     private async Task ImportExportMenuAsync()
     {
         var choice = AnsiConsole.Prompt(
@@ -650,7 +632,6 @@ public class ConsoleApp
                 new TextPrompt<string>("[bold]Exportalasi utvonal (fajlnev):[/]")
                     .DefaultValue("questions_export.json"));
 
-            // Ha mappat adott meg, fajlnevet fuzunk hozza
             if (Directory.Exists(filePath))
                 filePath = Path.Combine(filePath, "questions_export.json");
 
@@ -700,10 +681,7 @@ public class ConsoleApp
         }
     }
 
-    // =============================================
     //  Napi csomag
-    // =============================================
-
     private async Task DailyPackageAsync()
     {
         AnsiConsole.Write(new Rule("[bold dodgerblue2] Napi Gyakorlo Csomag [/]").RuleStyle("dodgerblue2"));
@@ -754,7 +732,6 @@ public class ConsoleApp
 
         AnsiConsole.Write(table);
 
-        // Gyakorlas inditasa a csomagbol
         if (AnsiConsole.Confirm("\n[bold]Elkezded gyakorolni a napi csomagot?[/]", true))
         {
             await PracticeFromPackageAsync(package);
@@ -794,7 +771,6 @@ public class ConsoleApp
             AnsiConsole.MarkupLine("\n[grey italic]Gondolkodj, majd nyomj ENTER-t a valasz megjelenitsehez...[/]");
             Console.ReadLine();
 
-            // Valasz megjelenitese
             var answerPanel = new Panel(
                 new Markup($"[bold green]{Markup.Escape(question.Answer)}[/]"))
             {
@@ -828,7 +804,6 @@ public class ConsoleApp
             AnsiConsole.WriteLine();
         }
 
-        // Osszesites
         var summaryPanel = new Panel(
             new Markup(
                 $"[bold]Kerdesek:[/] {total}\n" +
@@ -843,10 +818,7 @@ public class ConsoleApp
         AnsiConsole.Write(summaryPanel);
     }
 
-    // =============================================
-    //  Heti osszefoglalo
-    // =============================================
-
+    //  Heti összefoglaló
     private async Task WeeklySummaryMenuAsync()
     {
         AnsiConsole.Write(new Rule("[bold dodgerblue2] Heti Osszefoglalo [/]").RuleStyle("dodgerblue2"));
@@ -863,7 +835,6 @@ public class ConsoleApp
 
         if (summary == null) return;
 
-        // Megjelnites
         var accColor = summary.AccuracyPercentage >= 70 ? "green"
             : summary.AccuracyPercentage >= 40 ? "yellow"
             : "red";
@@ -884,7 +855,6 @@ public class ConsoleApp
         };
         AnsiConsole.Write(panel);
 
-        // Temakor tablazat
         if (summary.TopicBreakdown.Count > 0)
         {
             AnsiConsole.WriteLine();
@@ -910,7 +880,6 @@ public class ConsoleApp
             AnsiConsole.Write(table);
         }
 
-        // Email kuldes
         AnsiConsole.WriteLine();
         if (AnsiConsole.Confirm("[grey]Szeretned elkuldeni emailben?[/]", false))
         {

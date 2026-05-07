@@ -44,6 +44,7 @@ public interface IQuestionService
     Task<List<Question>> GetAllQuestionsAsync();
     Task<List<Topic>> GetAllTopicsAsync();
     Task<Topic> AddTopicAsync(string name);
+    Task<int> GetTotalQuestionCountAsync();
     Task<bool> DeleteQuestionAsync(int id);
 }
 

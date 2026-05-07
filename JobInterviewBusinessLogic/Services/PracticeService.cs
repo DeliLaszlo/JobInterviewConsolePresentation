@@ -20,9 +20,7 @@ public class PracticeService : IPracticeService
         _ratingRepo = ratingRepo;
     }
 
-    /// <summary>
-    /// Véletlenszerű kérdés kiválasztása.
-    /// </summary>
+    // Véletlenszerű kérdés kiválasztása.
     public async Task<Question?> GetRandomQuestionAsync()
     {
         var questions = await _questionRepo.GetAllWithDetailsAsync();
@@ -30,15 +28,14 @@ public class PracticeService : IPracticeService
         return questions[_random.Next(questions.Count)];
     }
 
-    /// <summary>
-    /// Adaptív, súlyozott kérdés kiválasztás.
-    /// Súly képlet:
-    ///   weight = base(1)
-    ///          + (rossz válaszok száma × 2)
-    ///          + (régen volt az utolsó próbálkozás → +1..+3)
-    ///          + (alacsony átlag rating → +2)
-    ///          + (soha nem próbált → +3)
-    /// </summary>
+    // Adaptív, súlyozott kérdés kiválasztás.
+    // Súly képlet:
+    //   weight = base(1)
+    //          + (rossz válaszok száma × 2)
+    //          + (régen volt az utolsó próbálkozás → +1..+3)
+    //          + (kevés helyes arány → +2..+3)
+    //          + (alacsony átlag rating → +2)
+    //          + (soha nem próbált → +3)
     public async Task<Question?> GetAdaptiveQuestionAsync()
     {
         var questions = await _questionRepo.GetAllWithDetailsAsync();
@@ -102,9 +99,7 @@ public class PracticeService : IPracticeService
         return weights.Last().question;
     }
 
-    /// <summary>
-    /// Próbálkozás rögzítése.
-    /// </summary>
+    // Próbálkozás rögzítése.
     public async Task RecordAttemptAsync(int questionId, bool correct)
     {
         var attempt = new Attempt
@@ -116,9 +111,7 @@ public class PracticeService : IPracticeService
         await _attemptRepo.AddAsync(attempt);
     }
 
-    /// <summary>
-    /// Kérdés értékelésének rögzítése (1–5).
-    /// </summary>
+    // Kérdés értékelésének rögzítése (1–5).
     public async Task RecordRatingAsync(int questionId, int score)
     {
         var rating = new Rating

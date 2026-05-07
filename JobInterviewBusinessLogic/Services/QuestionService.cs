@@ -17,9 +17,7 @@ public class QuestionService : IQuestionService
         _topicRepo = topicRepo;
     }
 
-    /// <summary>
-    /// Új kérdés hozzáadása.
-    /// </summary>
+    // Új kérdés hozzáadása.
     public async Task<Question> AddQuestionAsync(string text, string answer, int topicId, Difficulty difficulty)
     {
         var question = new Question
@@ -35,25 +33,25 @@ public class QuestionService : IQuestionService
         return question;
     }
 
-    /// <summary>
-    /// Összes kérdés lekérdezése részletekkel.
-    /// </summary>
+    // Összes kérdés lekérdezése részletekkel.
     public async Task<List<Question>> GetAllQuestionsAsync()
     {
         return await _questionRepo.GetAllWithDetailsAsync();
     }
 
-    /// <summary>
-    /// Összes témakör lekérdezése.
-    /// </summary>
+    // Kérdések darabszámának lekérdezése.
+    public async Task<int> GetTotalQuestionCountAsync()
+    {
+        return await _questionRepo.GetTotalQuestionCountAsync();
+    }
+
+    // Összes témakör lekérdezése.
     public async Task<List<Topic>> GetAllTopicsAsync()
     {
         return await _topicRepo.GetAllAsync();
     }
 
-    /// <summary>
-    /// Új témakör hozzáadása.
-    /// </summary>
+    // Új témakör hozzáadása.
     public async Task<Topic> AddTopicAsync(string name)
     {
         var topic = new Topic { Name = name };
@@ -61,9 +59,7 @@ public class QuestionService : IQuestionService
         return topic;
     }
 
-    /// <summary>
-    /// Kérdés törlése azonosító alapján.
-    /// </summary>
+    // Kérdés törlése azonosító alapján.
     public async Task<bool> DeleteQuestionAsync(int id)
     {
         var question = await _questionRepo.GetByIdAsync(id);

@@ -17,12 +17,10 @@ public class DailyPackageService : IDailyPackageService
         _statisticsService = statisticsService;
     }
 
-    /// <summary>
-    /// Napi gyakorló csomag generálása:
-    ///   50% – gyenge témák kérdései
-    ///   20% – új (soha nem próbált) kérdések
-    ///   30% – vegyes/random kérdések
-    /// </summary>
+    // Napi gyakorló csomag generálása:
+    //   50% – gyenge témák kérdései
+    //   20% – új (soha nem próbált) kérdések
+    //   30% – vegyes/random kérdések
     public async Task<List<Question>> GenerateDailyPackageAsync(int totalCount = 10)
     {
         var allQuestions = await _questionRepo.GetAllWithDetailsAsync();
@@ -78,6 +76,7 @@ public class DailyPackageService : IDailyPackageService
         return Shuffle(package);
     }
 
+    // Fisher-Yates shuffle algoritmus a kérdések véletlenszerű sorrendjéhez
     private static List<Question> Shuffle(List<Question> list)
     {
         var shuffled = new List<Question>(list);

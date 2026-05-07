@@ -12,9 +12,7 @@ public class StatisticsService : IStatisticsService
         _questionRepo = questionRepo;
     }
 
-    /// <summary>
-    /// Kérdésenkénti statisztikák: pontosság, átlag rating stb.
-    /// </summary>
+    // Kérdésenkénti statisztikák: pontosság, átlag rating stb.
     public async Task<List<QuestionStatDto>> GetQuestionStatsAsync()
     {
         var questions = await _questionRepo.GetAllWithDetailsAsync();
@@ -36,9 +34,7 @@ public class StatisticsService : IStatisticsService
             .ToList();
     }
 
-    /// <summary>
-    /// Témakörönkénti összesített teljesítmény.
-    /// </summary>
+    // Témakörönkénti összesített teljesítmény.
     public async Task<List<TopicStatDto>> GetTopicStatsAsync()
     {
         var questions = await _questionRepo.GetAllWithDetailsAsync();
@@ -56,9 +52,7 @@ public class StatisticsService : IStatisticsService
             .ToList();
     }
 
-    /// <summary>
-    /// Leggyengébb témakörök (TOP N, legalább 1 próbálkozás).
-    /// </summary>
+    // Leggyengébb témakörök (TOP N, legalább 1 próbálkozás).
     public async Task<List<TopicStatDto>> GetWeakestTopicsAsync(int count = 5)
     {
         var stats = await GetTopicStatsAsync();
@@ -69,9 +63,7 @@ public class StatisticsService : IStatisticsService
             .ToList();
     }
 
-    /// <summary>
-    /// Legtöbbször elhibázott kérdések.
-    /// </summary>
+    // Legtöbbször elhibázott kérdések.
     public async Task<List<QuestionStatDto>> GetMostMissedQuestionsAsync(int count = 5)
     {
         var stats = await GetQuestionStatsAsync();
@@ -82,9 +74,7 @@ public class StatisticsService : IStatisticsService
             .ToList();
     }
 
-    /// <summary>
-    /// Legjobban teljesített kérdések.
-    /// </summary>
+    // Legjobban teljesített kérdések.
     public async Task<List<QuestionStatDto>> GetBestQuestionsAsync(int count = 5)
     {
         var stats = await GetQuestionStatsAsync();

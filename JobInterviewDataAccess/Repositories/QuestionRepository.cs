@@ -19,6 +19,11 @@ public class QuestionRepository : Repository<Question>, IQuestionRepository
             .ToListAsync();
     }
 
+    public async Task<int> GetTotalQuestionCountAsync()
+    {
+        return await _dbSet.CountAsync();
+    }
+
     public async Task<Question?> GetWithDetailsAsync(int id)
     {
         return await _dbSet

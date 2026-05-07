@@ -11,7 +11,7 @@ public static class DbSeeder
         if (await context.Topics.AnyAsync())
             return;
 
-        // -- Temakoerok --
+        // Temakorok
         var topics = new List<Topic>
         {
             new() { Name = "C# Alapok" },
@@ -26,11 +26,11 @@ public static class DbSeeder
         context.Topics.AddRange(topics);
         await context.SaveChangesAsync();
 
-        // -- Kerdesek valaszokkal --
+        // Kerdesek valaszokkal
         var now = DateTime.UtcNow;
         var questions = new List<Question>
         {
-            // ============ C# Alapok ============
+            // C# Alapok
             new()
             {
                 Text = "Mi a kulonbseg a value type es reference type kozott C#-ban?",
@@ -62,7 +62,7 @@ public static class DbSeeder
                 TopicId = topics[0].Id, Difficulty = Difficulty.Medium, CreatedAt = now
             },
 
-            // ============ OOP ============
+            // OOP
             new()
             {
                 Text = "Mik az objektorientalt programozas negy alappillere?",
@@ -94,7 +94,7 @@ public static class DbSeeder
                 TopicId = topics[1].Id, Difficulty = Difficulty.Medium, CreatedAt = now
             },
 
-            // ============ .NET Keretrendszer ============
+            // .NET Keretrendszer
             new()
             {
                 Text = "Mi a CLR (Common Language Runtime) es mi a feladata?",
@@ -126,7 +126,7 @@ public static class DbSeeder
                 TopicId = topics[2].Id, Difficulty = Difficulty.Hard, CreatedAt = now
             },
 
-            // ============ SQL es Adatbazisok ============
+            // SQL es Adatbazisok
             new()
             {
                 Text = "Mi a kulonbseg az INNER JOIN es LEFT JOIN kozott?",
@@ -158,7 +158,7 @@ public static class DbSeeder
                 TopicId = topics[3].Id, Difficulty = Difficulty.Medium, CreatedAt = now
             },
 
-            // ============ Design Patterns ============
+            // Design Patterns
             new()
             {
                 Text = "Magyarazd el a Singleton mintat! Mikor hasznaljuk es mik a veszelyei?",
@@ -190,7 +190,7 @@ public static class DbSeeder
                 TopicId = topics[4].Id, Difficulty = Difficulty.Medium, CreatedAt = now
             },
 
-            // ============ Web Fejlesztes ============
+            // Web Fejlesztes
             new()
             {
                 Text = "Mi a REST API es mik az alapelvei?",
@@ -222,7 +222,7 @@ public static class DbSeeder
                 TopicId = topics[5].Id, Difficulty = Difficulty.Medium, CreatedAt = now
             },
 
-            // ============ Algoritmusok es Adatszerkezetek ============
+            // Algoritmusok es Adatszerkezetek
             new()
             {
                 Text = "Mi a Big O jeloles es mire hasznaljuk?",

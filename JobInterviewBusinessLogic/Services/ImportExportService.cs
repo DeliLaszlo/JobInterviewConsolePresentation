@@ -25,9 +25,7 @@ public class ImportExportService : IImportExportService
         _topicRepo = topicRepo;
     }
 
-    /// <summary>
-    /// Összes kérdés exportálása JSON fájlba.
-    /// </summary>
+    // Összes kérdés exportálása JSON fájlba.
     public async Task ExportQuestionsAsync(string filePath)
     {
         var questions = await _questionRepo.GetAllWithDetailsAsync();
@@ -47,9 +45,7 @@ public class ImportExportService : IImportExportService
         await File.WriteAllTextAsync(filePath, json);
     }
 
-    /// <summary>
-    /// Kérdések importálása JSON fájlból validációval.
-    /// </summary>
+    // Kérdések importálása JSON fájlból validációval.
     public async Task<(int imported, int skipped, List<string> errors)> ImportQuestionsAsync(string filePath)
     {
         int imported = 0, skipped = 0;

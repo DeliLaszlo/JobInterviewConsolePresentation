@@ -16,9 +16,7 @@ public class BookmarkService : IBookmarkService
         _questionRepo = questionRepo;
     }
 
-    /// <summary>
-    /// Könyvjelző hozzáadása (duplikáció ellenőrzéssel).
-    /// </summary>
+    // Könyvjelző hozzáadása (duplikáció ellenőrzéssel).
     public async Task<Bookmark> AddBookmarkAsync(int questionId)
     {
         var existing = await _bookmarkRepo.FindAsync(b => b.QuestionId == questionId);
@@ -35,9 +33,7 @@ public class BookmarkService : IBookmarkService
         return bookmark;
     }
 
-    /// <summary>
-    /// Könyvjelző eltávolítása kérdés alapján.
-    /// </summary>
+    // Könyvjelző eltávolítása kérdés alapján.
     public async Task<bool> RemoveBookmarkAsync(int questionId)
     {
         var bookmarks = await _bookmarkRepo.FindAsync(b => b.QuestionId == questionId);
@@ -47,17 +43,13 @@ public class BookmarkService : IBookmarkService
         return true;
     }
 
-    /// <summary>
-    /// Összes könyvjelző lekérdezése a kérdés és témakör adataival.
-    /// </summary>
+    // Összes könyvjelző lekérdezése a kérdés és témakör adataival.
     public async Task<List<Bookmark>> GetAllBookmarksAsync()
     {
         return await _bookmarkRepo.GetAllWithQuestionsAsync();
     }
 
-    /// <summary>
-    /// Ellenőrzi, hogy egy kérdés könyvjelzőzve van-e.
-    /// </summary>
+    // Ellenőrzi, hogy egy kérdés könyvjelzőzve van-e.
     public async Task<bool> IsBookmarkedAsync(int questionId)
     {
         var result = await _bookmarkRepo.FindAsync(b => b.QuestionId == questionId);
