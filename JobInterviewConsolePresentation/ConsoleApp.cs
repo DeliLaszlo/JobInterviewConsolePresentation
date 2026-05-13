@@ -4,6 +4,7 @@ using JobInterviewCore.Enums;
 using JobInterviewCore.Interfaces;
 using Spectre.Console;
 using Microsoft.Extensions.Configuration;
+using System.Text.RegularExpressions;
 
 namespace JobInterviewConsolePresentation;
 
@@ -730,15 +731,130 @@ public class ConsoleApp
 
         AnsiConsole.Write(table);
 
-        if (AnsiConsole.Confirm("\n[grey]Szeretnel konyvjelzot torolni?[/]", false))
+        AnsiConsole.WriteLine();
+        while (true)
         {
-            var qId = AnsiConsole.Prompt(
-                new TextPrompt<int>("[bold]Add meg a kerdes ID-jat:[/]"));
+            var action = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("[bold]Mit szeretnel tenni a konyvjelzokkel?[/]")
+                    .HighlightStyle(new Style(Color.DodgerBlue2))
+                    .AddChoices("Gyakorlas", "Torles", "<< Vissza"));
 
-            if (await _bookmarkService.RemoveBookmarkAsync(qId))
-                AnsiConsole.MarkupLine("[green]Konyvjelzo torolve![/]");
-            else
-                AnsiConsole.MarkupLine("[red]Nem talalhato konyvjelzo ezzel az ID-val.[/]");
+            if (action == "<< Vissza") break;
+
+            var qIdStr = AnsiConsole.Prompt(
+                new TextPrompt<string>($"[bold]Add meg a kerdes ID-jat a {action.ToLower()}hoz ([yellow]vagy ird be: 'x' a kilepeshez[/]):[/]")
+                    .Validate(s =>
+                    {
+                        if (s.Trim().ToLower() == "x") return ValidationResult.Success();
+                        return int.TryParse(s, out _)
+                            ? ValidationResult.Success()
+                            : ValidationResult.Error("[red]Adj meg egy ervenyes ID-t vagy 'x'-et![/]");
+                    }));
+
+            if (qIdStr.Trim().ToLower() == "x") continue;
+            int qId = int.Parse(qIdStr);
+
+            var selectedBm = bookmarks.FirstOrDefault(b => b.Question.Id == qId);
+
+            if (selectedBm == null)
+            {
+                AnsiConsole.MarkupLine("[red]Nem talalhato konyvjelzo ezzel az ID-val a listadban.[/]");
+                continue;
+            }
+
+            if (action == "Torles")
+            {
+                if (await _bookmarkService.RemoveBookmarkAsync(qId))
+                {
+                    AnsiConsole.MarkupLine("[green]Konyvjelzo torolve![/]");
+                    bookmarks.Remove(selectedBm);
+                    if (bookmarks.Count == 0) break;
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine("[red]Hiba a torles soran.[/]");
+                }
+            }
+            else if (action == "Gyakorlas")
+            {
+                var question = selectedBm.Question;
+                
+                var diffColor = question.Difficulty switch
+                {
+                    Difficulty.Easy => "green",
+                    Difficulty.Medium => "yellow",
+                    Difficulty.Hard => "red",
+                    _ => "white"
+                };
+
+                var panel = new Panel(
+                    new Markup($"[bold white]{Markup.Escape(question.Text)}[/]"))
+                {
+                    Header = new PanelHeader(
+                        $"[bold blue] #{question.Id} [/]| {Markup.Escape(question.Topic.Name)} | [{diffColor}]{question.Difficulty}[/]"),
+                    Border = BoxBorder.Rounded,
+                    BorderStyle = new Style(Color.DodgerBlue2),
+                    Padding = new Padding(2, 1)
+                };
+                
+                AnsiConsole.WriteLine();
+                AnsiConsole.Write(panel);
+
+                AnsiConsole.MarkupLine("\n[grey italic]Gondolkodj a valaszon, majd nyomj [bold]ENTER[/]-t a valaszhoz, vagy [bold]ESC[/]-t a kilepeshez...[/]");
+                bool quitPractice = false;
+                while (true)
+                {
+                    var keyInfo = Console.ReadKey(intercept: true);
+                    if (keyInfo.Key == ConsoleKey.Enter) break;
+                    if (keyInfo.Key == ConsoleKey.Escape)
+                    {
+                        quitPractice = true;
+                        break;
+                    }
+                }
+
+                if (quitPractice) continue;
+
+                var answerPanel = new Panel(
+                    new Markup($"[bold green]{Markup.Escape(question.Answer)}[/]"))
+                {
+                    Header = new PanelHeader("[bold green] Valasz [/]"),
+                    Border = BoxBorder.Rounded,
+                    BorderStyle = new Style(Color.Green),
+                    Padding = new Padding(2, 1)
+                };
+                AnsiConsole.Write(answerPanel);
+                AnsiConsole.WriteLine();
+
+                var correct = AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("[bold]Tudtad a helyes valaszt?[/]")
+                        .HighlightStyle(new Style(Color.DodgerBlue2))
+                        .AddChoices("Igen", "Nem"));
+
+                bool isCorrect = correct == "Igen";
+                await _practiceService.RecordAttemptAsync(question.Id, isCorrect);
+
+                var rating = AnsiConsole.Prompt(
+                    new TextPrompt<int>("[grey]Ertekeles (1-5):[/]")
+                        .DefaultValue(3)
+                        .Validate(r => r is >= 1 and <= 5
+                            ? ValidationResult.Success()
+                            : ValidationResult.Error("[red]1-5![/]")));
+
+                await _practiceService.RecordRatingAsync(question.Id, rating);
+
+                if (AnsiConsole.Confirm("[yellow]Szeretned torolni ezt a konyvjelzot?[/]", false))
+                {
+                    if (await _bookmarkService.RemoveBookmarkAsync(qId))
+                    {
+                        AnsiConsole.MarkupLine("[green]Konyvjelzo torolve![/]");
+                        bookmarks.Remove(selectedBm);
+                        if (bookmarks.Count == 0) break;
+                    }
+                }
+            }
         }
     }
 
@@ -759,8 +875,10 @@ public class ConsoleApp
         if (choice.StartsWith("Kerdesek exportalasa"))
         {
             var filePath = AnsiConsole.Prompt(
-                new TextPrompt<string>("[bold]Exportalasi utvonal (fajlnev):[/]")
+                new TextPrompt<string>("[bold]Exportalasi utvonal (fajlnev) ([yellow]vagy 'x' a kilepeshez[/]):[/]")
                     .DefaultValue("questions_export.json"));
+
+            if (filePath.Trim().ToLower() == "x") return;
 
             if (Directory.Exists(filePath))
                 filePath = Path.Combine(filePath, "questions_export.json");
@@ -785,10 +903,16 @@ public class ConsoleApp
         else
         {
             var filePath = AnsiConsole.Prompt(
-                new TextPrompt<string>("[bold]Import fajl utvonala:[/]")
-                    .Validate(p => !string.IsNullOrWhiteSpace(p)
-                        ? ValidationResult.Success()
-                        : ValidationResult.Error("[red]Add meg az utvonalat![/]")));
+                new TextPrompt<string>("[bold]Import fajl utvonala ([yellow]vagy 'x' a kilepeshez[/]):[/]")
+                    .Validate(p =>
+                    {
+                        if (p.Trim().ToLower() == "x") return ValidationResult.Success();
+                        return !string.IsNullOrWhiteSpace(p)
+                            ? ValidationResult.Success()
+                            : ValidationResult.Error("[red]Add meg az utvonalat![/]");
+                    }));
+
+            if (filePath.Trim().ToLower() == "x") return;
 
             var (imported, skipped, errors) = (0, 0, new List<string>());
 
@@ -1031,10 +1155,22 @@ public class ConsoleApp
         if (AnsiConsole.Confirm("[grey]Szeretned elkuldeni emailben?[/]", false))
         {
             var email = AnsiConsole.Prompt(
-                new TextPrompt<string>("[bold]Email cim:[/]")
-                    .Validate(e => e.Contains('@')
-                        ? ValidationResult.Success()
-                        : ValidationResult.Error("[red]Ervenytelen email cim![/]")));
+                new TextPrompt<string>("[bold]Email cim ([yellow]vagy ird be: 'x' a kilepeshez[/]):[/]")
+                    .Validate(e =>
+                    {
+                        if (e.Trim().ToLower() == "x") return ValidationResult.Success();
+                        
+                        var regex = new Regex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+                        return regex.IsMatch(e)
+                            ? ValidationResult.Success()
+                            : ValidationResult.Error("[red]Ervenytelen email cim![/]");
+                    }));
+
+            if (email.Trim().ToLower() == "x")
+            {
+                AnsiConsole.MarkupLine("[yellow]Email kuldese megszakitva.[/]");
+                return;
+            }
 
             try
             {
